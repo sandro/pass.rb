@@ -1,5 +1,18 @@
 #!/usr/bin/env ruby
 
+# Description
+# Starts the rails environment in a long running process that forks a test
+# runner. The should begin running immediately as the rails environment has
+# already been loaded. Useful when running a single spec over and over.
+#
+# Usage
+# chmod +x pass
+# In one terminal window, run ./pass
+# In another window, run ./pass spec or ./pass spec/models/model_spec.rb
+
+# If rb-fsevent is installed, the program will exit when a change is detected
+# in the Gemfile, db/ config/ lib/ vendor/ directories.
+
 FIFO_FILE = ".pass_ipc"
 `mkfifo #{FIFO_FILE}` unless test(?e, FIFO_FILE)
 
@@ -50,7 +63,7 @@ class Watcher
   def initialize
     @parent_pid = Process.pid
 
-    @listener_installed = require 'listen'
+    @watcher_installed = require 'rb-fsevent'
   rescue LoadError
   end
 
@@ -62,20 +75,23 @@ class Watcher
 
   def launch_watcher
     @watcher_pid = fork do
-      watcher = Listen.to('.').ignore('tmp/').change do |modified, added|
-        modified.each do |file|
-          if file =~ %r(Gemfile|db/structure.sql)
-            puts("Core file #{file} has changed.")
-            Process.kill('TERM', @parent_pid)
-          end
+      time = Time.now
+      e = FSEvent.new
+      e.watch Dir.pwd, :no_defer => true do |changes|
+        diff = (time - Time.now).round
+        files = %x(find #{changes.first} -mtime #{diff}s)
+        if files =~ %r(Gemfile|db/|config/|lib/|vendor/)
+          puts("Core file has changed.")
+          Process.kill('TERM', @parent_pid)
         end
+        time = Time.now
       end
-      watcher.start
+      e.run
     end
   end
 
   def start
-    launch_watcher if @listener_installed
+    launch_watcher if @watcher_installed
     launch_server
     Process.waitall
   ensure
