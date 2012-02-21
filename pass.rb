@@ -2,8 +2,8 @@
 
 # Description
 # Starts the rails environment in a long running process that forks a test
-# runner. The should begin running immediately as the rails environment has
-# already been loaded. Useful when running a single spec over and over.
+# runner. The test should begin running immediately as the rails environment
+# has already been loaded. Useful when running a single spec over and over.
 #
 # Usage
 # chmod +x pass
@@ -11,7 +11,7 @@
 # In another window, run ./pass spec or ./pass spec/models/model_spec.rb
 
 # If rb-fsevent is installed, the program will exit when a change is detected
-# in the Gemfile, db/ config/ lib/ vendor/ directories.
+# in the Gemfile, or the db, config, lib, vendor, directories.
 
 FIFO_FILE = ".pass_ipc"
 `mkfifo #{FIFO_FILE}` unless test(?e, FIFO_FILE)
