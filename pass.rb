@@ -32,7 +32,8 @@ end
 class Server
   def initialize(parent)
     puts "booting rails"
-    require './spec/spec_helper'
+    ENV['RAILS_ENV'] = 'test'
+    require './config/environment'
     ActiveRecord::Base.remove_connection
     puts "booted"
     wait_and_run
