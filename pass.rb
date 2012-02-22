@@ -50,11 +50,12 @@ class Server
   def run(args)
     puts "running #{args.join(' ')}"
     pid = fork do
-      Bundler.require('test')
-      out = File.open(FIFO_FILE, 'w')
-      out.sync = true
-      ActiveRecord::Base.establish_connection
-      ::RSpec::Core::Runner.run args.unshift('--tty'), $stderr, out
+      begin
+        out = File.open(FIFO_FILE, 'w')
+        out.sync = true
+        ::RSpec::Core::Runner.run args.unshift('--tty'), $stderr, out
+      rescue Errno::EPIPE
+      end
     end
     Process.waitall
   ensure
