@@ -11,7 +11,7 @@
 # In another window, run ./pass spec or ./pass spec/models/model_spec.rb
 
 # If rb-fsevent is installed, the program will exit when a change is detected
-# in the Gemfile, or the db, config, lib, vendor, directories.
+# in the Gemfile, or the db, config, lib and vendor directories.
 
 FIFO_FILE = ".pass_ipc"
 `mkfifo #{FIFO_FILE}` unless test(?e, FIFO_FILE)
@@ -30,25 +30,27 @@ if ARGV.any?
 end
 
 class Server
-  def initialize(parent)
+
+  def start
     puts "booting rails"
-    ENV['RAILS_ENV'] = 'test'
     require './config/environment'
+    ENV.delete 'RAILS_ENV'
     ActiveRecord::Base.remove_connection
     puts "booted"
     wait_and_run
   end
 
   def wait_and_run
-    puts "waiting..."
-    args = File.read(FIFO_FILE).split
-    run args unless args.empty?
-    wait_and_run
+    while args = File.read(FIFO_FILE).split
+      run args
+      puts "waiting..."
+    end
   end
 
   def run(args)
     puts "running #{args.join(' ')}"
     pid = fork do
+      Bundler.require('test')
       out = File.open(FIFO_FILE, 'w')
       out.sync = true
       ActiveRecord::Base.establish_connection
@@ -69,9 +71,7 @@ class Watcher
   end
 
   def launch_server
-    @server_pid = fork do
-      Server.new(@rd)
-    end
+    @server_pid = fork { Server.new.start }
   end
 
   def launch_watcher
