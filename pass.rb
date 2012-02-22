@@ -29,14 +29,18 @@ if ARGV.any?
   exit
 end
 
+require 'benchmark'
 class Server
 
   def start
     puts "booting rails"
-    require './config/environment'
-    ENV.delete 'RAILS_ENV'
-    ActiveRecord::Base.remove_connection
-    puts "booted"
+    ENV['RAILS_ENV'] ||= 'test'
+    t = Benchmark.realtime do
+      require File.expand_path('config/application')
+      require 'rspec/rails'
+      ActiveRecord::Base.remove_connection
+    end
+    puts "booted in #{t}"
     wait_and_run
   end
 
