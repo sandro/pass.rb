@@ -4,14 +4,17 @@
 # Starts the rails environment in a long running process that forks a test
 # runner. The test begins running immediately as the rails environment
 # has already been loaded. Useful when running a single spec over and over.
+
+# The program will exit when a change is detected
+# in the Gemfile, or the db, config, lib and vendor directories.
+#
+# A worker will reload the environment when a change is detected in the app/ or
+# spec/ directories.
 #
 # Usage
 # chmod +x pass
 # In one terminal window, run ./pass.rb
-# In another window, run ./pass.rb spec or ./pass.rb spec/models/model_spec.rb.rb.rb
-
-# The program will exit when a change is detected
-# in the Gemfile, or the db, config, lib and vendor directories.
+# In another window, run the actual test, i.e. ./pass.rb spec/models/model_spec.rb
 
 FIFO_FILE = ".pass_ipc"
 `mkfifo #{FIFO_FILE}` unless test(?e, FIFO_FILE)
@@ -141,10 +144,6 @@ class Watcher
 end
 
 class Pass
-  def initialize
-    @parent_pid = Process.pid
-  end
-
   def launch_server
     @server_pid = fork { Server.new.start }
   end
