@@ -31,10 +31,6 @@ if ARGV.any?
   exit
 end
 
-require 'benchmark'
-require 'rb-fsevent'
-trap('USR1', 'IGNORE')
-
 class Server
   attr_reader :worker
 
@@ -171,5 +167,10 @@ class Pass
     Process.kill 'TERM', @watcher_pid rescue Errno::ESRCH
   end
 end
+
+require 'benchmark'
+require 'rb-fsevent'
+
+trap('USR1', 'IGNORE')
 
 Pass.new.start
