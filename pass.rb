@@ -40,6 +40,7 @@ class Server
     t = Benchmark.realtime do
       require File.expand_path('config/application')
       require 'rspec/rails'
+      ::RSpec.configuration.backtrace_clean_patterns << %r(#{__FILE__})
       ActiveRecord::Base.remove_connection
     end
     puts "rails booted in #{t}"
