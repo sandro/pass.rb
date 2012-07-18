@@ -41,6 +41,9 @@ class Server
       require File.expand_path('config/application')
       require 'rspec/rails'
       ::RSpec.configuration.backtrace_clean_patterns << %r(#{__FILE__})
+      # Rails.configuration.autoload_paths |= Rails.configuration.eager_load_paths
+      # Rails.configuration.eager_load_paths = []
+      # Rails.configuration.cache_classes = false
       ActiveRecord::Base.remove_connection
     end
     puts "rails booted in #{t}"
@@ -78,6 +81,12 @@ class Server
     def load
       @pid = fork do
         trap('USR1', 'IGNORE')
+        trap('QUIT') do
+          require 'irb'
+          require 'irb/completion'
+          IRB.start
+          puts "\n"
+        end
         @wd.close
         t = Benchmark.realtime do
           require File.expand_path('spec/spec_helper')
@@ -173,5 +182,6 @@ require 'benchmark'
 require 'rb-fsevent'
 
 trap('USR1', 'IGNORE')
+trap('QUIT', 'IGNORE')
 
 Pass.new.start
