@@ -103,6 +103,4 @@ class Pass
 end
 
 require 'benchmark'
-require 'rb-fsevent'
-
 Pass.new.start
