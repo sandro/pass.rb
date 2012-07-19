@@ -5,12 +5,9 @@
 # runner. The test begins running immediately as the rails environment
 # has already been loaded. Useful when running a single spec over and over.
 
-# The program will exit when a change is detected
-# in the Gemfile, or the db, config, lib and vendor directories.
-#
-# A worker will reload the environment when a change is detected in the app/ or
-# spec/ directories.
-#
+# Type CTRL-\ (Quit signal) to enter the rails console
+# Type CTRL-D (or exit) to exit the rails console
+
 # Usage
 # chmod +x pass
 # In one terminal window, run ./pass.rb
