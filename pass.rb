@@ -31,157 +31,78 @@ if ARGV.any?
   exit
 end
 
-class Server
-  attr_reader :worker
-
-  def start
-    puts "booting rails"
-    ENV['RAILS_ENV'] ||= 'test'
-    t = Benchmark.realtime do
-      require File.expand_path('config/application')
-      require 'rspec/rails'
-      ::RSpec.configuration.backtrace_clean_patterns << %r(#{__FILE__})
-      # Rails.configuration.autoload_paths |= Rails.configuration.eager_load_paths
-      # Rails.configuration.eager_load_paths = []
-      # Rails.configuration.cache_classes = false
-      ActiveRecord::Base.remove_connection
-    end
-    puts "rails booted in #{t}"
-    trap('USR1') { load_worker }
-    load_worker
-    wait_and_run
+class Pass
+  def initialize
+    trap('QUIT') { print("\r"); launch_console }
   end
 
-  def load_worker
-    @worker.kill if @worker
-    @worker = Worker.new.load
+  def trap_int
+    trap('INT') { abort("\rExit\n") }
+  end
+
+  def start
+    load_environment
+    trap_int
+    wait_and_run
   end
 
   def wait_and_run
     while args = File.read(FIFO_FILE)
-      worker.run args unless args.empty?
-      load_worker
+      puts "got args #{args.inspect}"
+      run args unless args.empty?
     end
   rescue Errno::EINTR
+    puts 'retrying'
     retry
   end
 
-  class Worker
-    attr_reader :pid
-
-    def initialize
-      @pid = nil
-      @rd, @wd = IO.pipe
-    end
-
-    def kill
-      Process.kill 'TERM', pid rescue Errno::ESRCH
-    end
-
-    def load
-      @pid = fork do
-        trap('USR1', 'IGNORE')
-        trap('QUIT') do
-          require 'irb'
-          require 'irb/completion'
-          IRB.start
-          puts "\n"
+  def run(args)
+    args = args.split(' ')
+    puts "running #{args.inspect}"
+    benchmark('reload') { reload_stack }
+    benchmark('fork') do
+      fork do
+        benchmark('establish connection') do
+          ActiveRecord::Base.establish_connection
         end
-        @wd.close
-        t = Benchmark.realtime do
-          require File.expand_path('spec/spec_helper')
-        end
-        puts "worker loaded environment in #{t}"
-        args = @rd.read.split
-        run_tests(args)
-        @rd.close
+        out = File.open(FIFO_FILE, 'w')
+        ::RSpec::Core::Runner.run args.unshift('--tty'), $stderr, out
         exit
       end
-      @rd.close
-      self
     end
-
-    def run(args)
-      @wd.write(args)
-      @wd.close
-      Process.waitall
-    ensure
-      Process.kill 'TERM', @pid rescue Errno::ESRCH
-    end
-
-    protected
-
-    # child process runs the tests
-    def run_tests(args)
-      puts "running #{args.join(' ')}"
-      out = File.open(FIFO_FILE, 'w')
-      ::RSpec::Core::Runner.run args.unshift('--tty'), $stderr, out
-    rescue Errno::EPIPE
-    end
-  end
-
-end
-
-class Watcher
-  attr_reader :fsevent, :callbacks
-
-  def initialize
-    @fsevent = FSEvent.new
-    @callbacks = {}
-  end
-
-  def register(regexp, &block)
-    callbacks[regexp] = block
-  end
-
-  def start
-    time = Time.now
-    fsevent.watch Dir.pwd, :no_defer => true do |changes|
-      diff = (time - Time.now).round
-      files = %x(find #{changes.first} -mtime #{diff}s)
-      callbacks.each do |regexp, block|
-        block.call if files =~ regexp
-      end
-      time = Time.now
-    end
-    fsevent.run
-  end
-
-end
-
-class Pass
-  def launch_server
-    @server_pid = fork { Server.new.start }
-  end
-
-  def launch_watcher
-    @watcher_pid = fork do
-      w = Watcher.new
-      w.register %r(Gemfile|db/|config/|lib/|vendor/) do
-        puts("Core file has changed.")
-        Process.kill('TERM', -Process.getpgrp)
-      end
-      w.register %r(app/|spec/) do
-        Process.kill('USR1', -Process.getpgrp)
-      end
-      w.start
-    end
-  end
-
-  def start
-    launch_server
-    launch_watcher
     Process.waitall
-  ensure
-    Process.kill 'TERM', @server_pid rescue Errno::ESRCH
-    Process.kill 'TERM', @watcher_pid rescue Errno::ESRCH
+  end
+
+  def load_environment
+    benchmark('rails loaded') do
+      require File.expand_path('spec/spec_helper')
+      ActiveRecord::Base.remove_connection
+      ::RSpec.configuration.backtrace_clean_patterns << %r(#{__FILE__})
+    end
+  end
+
+  def launch_console
+    require 'rails/commands/console'
+    Rails::Console.start(Rails.application)
+    trap_int
+    print "\r\n"
+  end
+
+  def reload_stack
+    Rails.application.reloaders.each do |reloader|
+      reloader.execute_if_updated
+    end
+  end
+
+  private
+
+  def benchmark(msg, &block)
+    t = Benchmark.realtime &block
+    puts "#{msg} in #{t}s"
   end
 end
 
 require 'benchmark'
 require 'rb-fsevent'
-
-trap('USR1', 'IGNORE')
-trap('QUIT', 'IGNORE')
 
 Pass.new.start
